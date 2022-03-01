@@ -16,3 +16,4 @@
 - POST: `curl -i -X POST -H "Content-Type: application/json" -d '{"email":"anyEmail@host.com", "phone": "0599033975"}' http://YOUR_HOST:YOUR_PORT/users` creates a new user
 - GET: `curl -i -X GET -H "Content-Type: application/json" http://YOUR_HOST:YOUR_PORT/users/{USER_ID}` retrieve single user by id
 - PUT: `curl -i -X PUT -H "Content-Type: application/json" -d '{"email":"anyEmail@host.com", "phone": "0599033975"}' http://YOUR_HOST:YOUR_PORT/users/{USER_ID}` updates user by id.
+- DELETE: `curl -i -X DELETE -H "Content-Type: application/json" http://YOUR_HOST:YOUR_PORT/users/{USER_ID}` delete user by id.

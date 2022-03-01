@@ -1,4 +1,4 @@
-use actix_web::web::{
+use actix_web::{web::{
     Data,
     Json,
     HttpResponse,
@@ -9,26 +9,27 @@ use actix_web::web::{
     put,
     post,
     get,
-};
+    delete,
+}};
 use chrono::NaiveDateTime;
 use sqlx::{Pool, Row, Sqlite};
 use sqlx::sqlite::SqliteRow;
 
-#[path = "../types/types.rs"] mod types;
-#[path = "../models/user_model.rs"] mod user_model;
+use crate::types::types::{User, UserForm};
+use crate::models::user_model;
 
-pub fn serialize_user(row: SqliteRow) -> types::User {
+pub fn serialize_user(row: SqliteRow) -> User {
     let created_at_string = NaiveDateTime::parse_from_str(row.get("created_at"), "%Y-%m-%d %H:%M:%S");
     return match created_at_string {
         Ok(created_at) => {
-            types::User {
+            User {
                 id: row.get(0),
                 email: row.get::<&str, &str>("email").parse().unwrap(),
                 phone: row.get("phone"),
                 created_at: Option::from(created_at),
             }
         },
-        _ => types::User {
+        _ => User {
             id: row.get("id"),
             email: row.get("email"),
             phone: row.get("phone"),
@@ -37,11 +38,12 @@ pub fn serialize_user(row: SqliteRow) -> types::User {
     }
 }
 
-pub async fn get_all(pool: Data<Pool<Sqlite>>) -> HttpResponse {
+// get /users}
+pub async fn get_all_users(pool: Data<Pool<Sqlite>>) -> HttpResponse {
     let rows = user_model::get_all(pool).await;
     match rows {
         Ok(rows) => {
-            let mut users_arr: Vec<types::User> = vec![];
+            let mut users_arr: Vec<User> = vec![];
             if rows.len() == 0 {
                 return HttpResponse::Ok().json(serde_json::json!(&users_arr));
             }
@@ -53,8 +55,8 @@ pub async fn get_all(pool: Data<Pool<Sqlite>>) -> HttpResponse {
         Err(err) => HttpResponse::InternalServerError().json(format!("failed to fetch users: {:?}", err))
     }
 }
-
-pub async fn get_single(id: Path<String>, pool: Data<Pool<Sqlite>>) -> HttpResponse {
+// get /users/{id}
+pub async fn get_single_user(id: Path<String>, pool: Data<Pool<Sqlite>>) -> HttpResponse {
     let row = user_model::get_by_id(id.to_string(), pool).await;
     match row {
         Ok(row) => {
@@ -64,7 +66,8 @@ pub async fn get_single(id: Path<String>, pool: Data<Pool<Sqlite>>) -> HttpRespo
     }
 }
 
-pub async fn create(new_user: Json<types::UserForm>, pool: Data<Pool<Sqlite>>) -> HttpResponse {
+// post /users
+pub async fn create_user(new_user: Json<UserForm>, pool: Data<Pool<Sqlite>>) -> HttpResponse {
     if new_user.email.is_none() {
         return HttpResponse::BadRequest().json("Missing user email");
     }
@@ -86,7 +89,8 @@ pub async fn create(new_user: Json<types::UserForm>, pool: Data<Pool<Sqlite>>) -
     }
 }
 
-pub async fn update(id: Path<String>, updated_user: Json<types::UserForm>, pool: Data<Pool<Sqlite>>) -> HttpResponse {
+// put /users/{id}
+pub async fn update_user(id: Path<String>, updated_user: Json<UserForm>, pool: Data<Pool<Sqlite>>) -> HttpResponse {
     if updated_user.email.is_none() {
         return HttpResponse::BadRequest().json("Missing user email");
     }
@@ -109,15 +113,32 @@ pub async fn update(id: Path<String>, updated_user: Json<types::UserForm>, pool:
     }
 }
 
+// delete /users/{id}
+pub async fn delete_user(id: Path<String>, pool: Data<Pool<Sqlite>>) -> HttpResponse {
+    let row = user_model::delete(
+        id.to_string(),
+        pool,
+    ).await;
+    match row {
+        Ok(row) => {
+            HttpResponse::Ok().json(serde_json::json!(serialize_user(row)))
+        },
+        Err(err) => {
+            HttpResponse::InternalServerError().json(format!("FAILED to delete user: {:?}", err))
+        }
+    }
+}
+
 pub fn init_user_routes(cfg: &mut ServiceConfig) {
     cfg.service(
         resource("/users")
-            .route(post().to(create))
-            .route(get().to(get_all))
+            .route(post().to(create_user))
+            .route(get().to(get_all_users))
     )
         .service(
             scope("/users")
-                .route("/{id}", get().to(get_single))
-                .route("/{id}", put().to(update))
+                .route("/{id}", get().to(get_single_user))
+                .route("/{id}", put().to(update_user))
+                .route("/{id}", delete().to(delete_user))
         );
 }
